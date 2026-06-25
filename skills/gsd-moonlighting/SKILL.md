@@ -56,7 +56,13 @@ For model routing, pick the agents/profiles per role (see "Model routing" below)
 2. **`just install` has been run** in claude-p, so `ht-webif`, `ma-client.sh`, and
    `launch-agents.sh` are all on PATH (`~/.local/bin/`). (claude-p stays as the
    `--webif-dir` fallback if the helpers are not on PATH.)
-3. **Confirm scope with the user:** which phases, which agent per role (model routing), and
+3. **`skipAutoPermissionPrompt: true` is set in `~/.claude/settings.json`.** The driven
+   claude starts as bare `claude` in the target dir; if that dir has never been trusted (a
+   git worktree, or any first-time cwd — NOT worktree-specific), Claude Code shows a "Do you
+   trust the files in this folder?" dialog and the driven claude hangs there, no-op'ing the
+   turn. `skipAutoPermissionPrompt: true` suppresses it. Verify it before an unattended run;
+   if missing, the first fresh-dir turn will silently stall. (See claude-p README 前提依存.)
+4. **Confirm scope with the user:** which phases, which agent per role (model routing), and
    that an unattended run is wanted. Note that setup writes `instances.conf`, `turns-<port>/`,
    `.moonlighting/` (and `.codex-home` if codex) into the dir — gitignore them.
 
