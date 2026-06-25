@@ -15,6 +15,10 @@
 # STRIDE must exceed the agent count so targets never overlap (default 10).
 set -uo pipefail
 
+# NOTE: the fullscreen-renderer footgun fix (CLAUDE_CODE_NO_FLICKER=1) lives in claude-p's
+# launch-agents.sh, re-injected AFTER its CLAUDE_CODE_* env scrub — setting it here is useless
+# because that scrub would strip it before the driven claude is spawned.
+
 WEBIF_DIR="${WEBIF_DIR:-/home/parallels/workspaces/claude-p}"  # fallback for helper scripts if not on PATH
 HERE=false; DIR=""
 REPO=""; NAME=""; INDEX=""; BRANCH=""
