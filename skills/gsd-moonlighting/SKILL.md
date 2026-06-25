@@ -112,6 +112,20 @@ Always `--dry-run` first to see the port plan. Tear down with
 `( cd <worktree> && launch-agents.sh down-all )` then
 `git -C <repo> worktree remove <worktree>`.
 
+### Merging the worktrees back (integration)
+moonlighting parallelizes *phases* across worktrees; it does NOT merge them back. Two parts:
+- **Code merge → reuse GSD's `gsd query worktree.cleanup-wave`** (it does `git merge --no-ff`
+  with validation: merge-base match, no-deletions guard, clean-tree check, SUMMARY rescue —
+  safer than a hand `git merge`). Note GSD's own worktrees are *intra-phase* (parallel plans
+  within one execute-phase); moonlighting's are *inter-phase* — orthogonal axes, but the
+  cleanup-wave merge machinery is reusable for the code side.
+- **Meta reconcile (STATE.md / ROADMAP.md / progress counters) is MANUAL — a genuine GSD gap.**
+  cleanup-wave merges code only; nothing recomputes planning meta, and `workstream complete`
+  only archives. When merging N phase-worktrees into one base, resolve STATE/ROADMAP to the
+  *combined* truth (all done phases marked, counters summed), then verify with
+  `gsd query validate consistency`. Do NOT blind-pick one side — both diverge from base. This
+  reconcile is the natural thing to script as a future `--steps …,integrate`.
+
 ## Model routing (optional, the multi-agent edge)
 `--plan-agent` / `--execute-agent` / `--verify-agent` take `instances.conf` agent names
 (`claude` / `codex` / `opencode` …). Use a strong agent for `plan`/`verify` and a cheaper
