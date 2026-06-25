@@ -89,7 +89,13 @@ else
   [ -n "$REPO" ] && [ -n "$NAME" ] && [ -n "$INDEX" ] || {
     echo "spawn-worktree: worktree mode needs --repo, --name, --index (or use --here)" >&2; usage; }
   git -C "$REPO" rev-parse --git-dir >/dev/null 2>&1 || { echo "spawn-worktree: $REPO is not a git repo" >&2; exit 1; }
-  BRANCH="${BRANCH:-moonlighting/$NAME}"
+  # Default branch matches cleanup-wave's required pattern ^worktree-agent-[A-Za-z0-9._/-]+$
+  # so merge-worktrees.sh can reconcile it via `gsd query worktree cleanup-wave`.
+  BRANCH="${BRANCH:-worktree-agent-$NAME}"
+  case "$BRANCH" in
+    worktree-agent-*) :;;
+    *) echo "spawn-worktree: WARNING — branch '$BRANCH' does not match worktree-agent-* ; cleanup-wave will reject it (merge back manually)." >&2;;
+  esac
   repo_name="$(basename "$REPO")"
   WORKTREES_ROOT="${WORKTREES_ROOT:-$(dirname "$REPO")/${repo_name}-wt}"
   TARGET="$WORKTREES_ROOT/$NAME"
@@ -125,13 +131,24 @@ if $DRY_RUN; then
   exit 0
 fi
 
-# 1. create worktree (worktree mode only)
+# 1. create worktree (worktree mode only) + record a cleanup-wave manifest entry
 if ! $HERE; then
+  # expected_base = REPO HEAD the new branch forks from; merge-worktrees.sh / cleanup-wave
+  # asserts merge-base(mainHEAD, branch) == this SHA before merging.
+  BASE_SHA="$(git -C "$REPO" rev-parse HEAD)"
   if [ -d "$TARGET" ]; then
     say "worktree dir already exists: $TARGET (reusing)"
   else
     git -C "$REPO" worktree add -b "$BRANCH" "$TARGET" || { say "git worktree add failed"; exit 1; }
   fi
+  # one manifest file per worktree (parallel-safe; assembled by merge-worktrees.sh).
+  # Lives under .moonlighting/ (gitignored). REPO is the integration root, not the worktree.
+  MANIFEST_DIR="$REPO/.moonlighting/manifest.d"
+  mkdir -p "$MANIFEST_DIR"
+  ABS_TARGET="$(cd "$TARGET" && pwd)"
+  printf '{"agent_id":"%s","worktree_path":"%s","branch":"%s","expected_base":"%s"}\n' \
+    "$NAME" "$ABS_TARGET" "$BRANCH" "$BASE_SHA" > "$MANIFEST_DIR/$NAME.json"
+  say "manifest: $MANIFEST_DIR/$NAME.json (base ${BASE_SHA:0:9})"
 fi
 
 # 2. generate instances.conf in the target dir

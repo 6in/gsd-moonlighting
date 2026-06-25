@@ -95,7 +95,9 @@ the spot. `scripts/spawn-worktree.sh` does this (claude-p itself is never modifi
   --repo <source-repo> --name feat-a --index 0 --agents claude \
   --launch --run-moonlighting "--from 2"
 ```
-It: creates the worktree (branch `moonlighting/<name>`) → writes `instances.conf` inside it
+It: creates the worktree (branch `worktree-agent-<name>`, matching cleanup-wave's required
+pattern so `merge-worktrees.sh` can reconcile it) and records a manifest entry under
+`<repo>/.moonlighting/manifest.d/` → writes `instances.conf` inside it
 with ports `BASE + index*STRIDE + k` → launches ht-webif **with cwd = the worktree** (so its
 claude TUI operates on that worktree's `.planning`) → starts moonlighting against those ports.
 Isolation is automatic: unique ports give unique PID/LOG (`/tmp/ht-webif-<port>.*`) and
@@ -112,19 +114,30 @@ Always `--dry-run` first to see the port plan. Tear down with
 `( cd <worktree> && launch-agents.sh down-all )` then
 `git -C <repo> worktree remove <worktree>`.
 
-### Merging the worktrees back (integration)
-moonlighting parallelizes *phases* across worktrees; it does NOT merge them back. Two parts:
-- **Code merge → reuse GSD's `gsd query worktree.cleanup-wave`** (it does `git merge --no-ff`
-  with validation: merge-base match, no-deletions guard, clean-tree check, SUMMARY rescue —
-  safer than a hand `git merge`). Note GSD's own worktrees are *intra-phase* (parallel plans
-  within one execute-phase); moonlighting's are *inter-phase* — orthogonal axes, but the
-  cleanup-wave merge machinery is reusable for the code side.
-- **Meta reconcile (STATE.md / ROADMAP.md / progress counters) is MANUAL — a genuine GSD gap.**
-  cleanup-wave merges code only; nothing recomputes planning meta, and `workstream complete`
-  only archives. When merging N phase-worktrees into one base, resolve STATE/ROADMAP to the
-  *combined* truth (all done phases marked, counters summed), then verify with
-  `gsd query validate consistency`. Do NOT blind-pick one side — both diverge from base. This
-  reconcile is the natural thing to script as a future `--steps …,integrate`.
+### Merging the worktrees back (integration) — `merge-worktrees.sh`
+moonlighting parallelizes *phases* across worktrees; reconcile them with one command:
+```bash
+~/.claude/skills/gsd-moonlighting/scripts/merge-worktrees.sh --repo <repo>   # --dry-run first
+```
+It splits the merge into the two parts that diverge differently from base:
+- **Code → GSD's validated `gsd query worktree cleanup-wave`.** Reads the per-worktree
+  manifest entries (`worktree_path` / `branch` / `expected_base`) that `spawn-worktree.sh`
+  emitted, and does a per-branch `git merge --no-ff` guarded by merge-base match, no-deletions,
+  clean-tree, and SUMMARY rescue — then removes each worktree. (GSD's own worktrees are
+  *intra-phase*; moonlighting's are *inter-phase* — orthogonal axes, but the merge machinery
+  is reusable.)
+- **Meta → regenerated, never text-merged.** STATE.md is a *derived* file: a `merge=ours`
+  driver (installed by the script via `git config merge.ours.driver true`, since `ours` is
+  NOT built-in) keeps cleanup-wave from conflicting on it, then `gsd query state sync`
+  recomputes the counters from the on-disk `.planning/phases/*/` artifacts. ROADMAP rows are
+  per-phase distinct lines so git 3-way-merges them. `gsd query validate consistency` asserts
+  the result. This closes the manual-reconcile gap for the additive case.
+
+**Constraints (inherited from cleanup-wave):** branch names must match
+`^worktree-agent-[A-Za-z0-9._/-]+$` (spawn-worktree.sh default); a worktree branch that
+**deletes/renames** a file vs its base is **blocked** (`branch_contains_deletions`) — additive
+phases only, resolve renames by hand; the worktree must be clean (all work committed; gitignored
+runtime artifacts are fine).
 
 ## Model routing (optional, the multi-agent edge)
 `--plan-agent` / `--execute-agent` / `--verify-agent` take `instances.conf` agent names
