@@ -1,0 +1,9 @@
+# moonlighting runtime artifacts (written into TARGET project dirs, never here — listed for safety)
+instances.conf
+turns-*/
+.moonlighting/
+.codex-home/
+
+# editor / OS cruft
+*.swp
+.DS_Store
