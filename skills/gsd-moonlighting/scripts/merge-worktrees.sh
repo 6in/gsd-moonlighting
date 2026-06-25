@@ -18,7 +18,7 @@
 #   - the worktree dir must still exist + be clean; cleanup-wave removes it on success
 set -uo pipefail
 
-REPO=""; DRY_RUN=false; NO_COMMIT=false
+REPO=""; DRY_RUN=false; NO_COMMIT=false; SELECT=""
 WEBIF_DIR="${WEBIF_DIR:-/home/parallels/workspaces/claude-p}"
 
 usage() {
@@ -26,6 +26,8 @@ usage() {
 merge-worktrees.sh — reconcile parallel moonlighting worktrees back into the repo.
 
   --repo DIR     repo to integrate into (default: `git rev-parse --show-toplevel`)
+  --select LIST  comma-list of worktree names (agent_id) to merge — the human gate:
+                 only phases that passed manual verification. Default: ALL entries.
   --dry-run      assemble + print the manifest and planned steps; merge nothing
   --no-commit    run cleanup-wave + state sync but do not git-commit the reconcile
   -h|--help
@@ -35,6 +37,7 @@ EOF
 while [ $# -gt 0 ]; do
   case "$1" in
     --repo) REPO="$2"; shift 2;;
+    --select) SELECT="$2"; shift 2;;
     --dry-run) DRY_RUN=true; shift;;
     --no-commit) NO_COMMIT=true; shift;;
     -h|--help) usage;;
@@ -70,15 +73,24 @@ OUT="$REPO/.moonlighting/cleanup-manifest.json"
 shopt -s nullglob; entries=("$MANIFEST_DIR"/*.json); shopt -u nullglob
 [ "${#entries[@]}" -gt 0 ] || { say "merge-worktrees: no manifest entries in $MANIFEST_DIR"; exit 1; }
 
-# assemble per-entry files into a single {worktrees:[...]} manifest (node: always present w/ gsd)
+# assemble per-entry files into a single {worktrees:[...]} manifest (node: always present w/ gsd).
+# --select FILTERS to approved names (agent_id); empty = keep all. Names with no match -> error.
 node -e '
   const fs=require("fs"),p=require("path");
   const dir=process.argv[1], out=process.argv[2];
-  const ws=fs.readdirSync(dir).filter(f=>f.endsWith(".json"))
+  const sel=(process.argv[3]||"").split(",").map(s=>s.trim()).filter(Boolean);
+  let ws=fs.readdirSync(dir).filter(f=>f.endsWith(".json"))
     .map(f=>JSON.parse(fs.readFileSync(p.join(dir,f),"utf8")));
+  if (sel.length) {
+    const have=new Set(ws.map(w=>w.agent_id));
+    const missing=sel.filter(s=>!have.has(s));
+    if (missing.length) { process.stderr.write(`--select names not in manifest: ${missing.join(", ")}\n`); process.exit(3); }
+    ws=ws.filter(w=>sel.includes(w.agent_id));
+  }
+  if (!ws.length) { process.stderr.write("no manifest entries after select\n"); process.exit(4); }
   fs.writeFileSync(out, JSON.stringify({worktrees:ws}, null, 2));
-  process.stderr.write(`assembled ${ws.length} entr${ws.length===1?"y":"ies"} -> ${out}\n`);
-' "$MANIFEST_DIR" "$OUT" || { say "merge-worktrees: manifest assembly failed"; exit 1; }
+  process.stderr.write(`assembled ${ws.length} entr${ws.length===1?"y":"ies"}${sel.length?` (selected: ${sel.join(",")})`:""} -> ${out}\n`);
+' "$MANIFEST_DIR" "$OUT" "$SELECT" || { say "merge-worktrees: manifest assembly failed (or --select mismatch)"; exit 1; }
 
 say "=== merge-worktrees: repo $REPO ==="
 say "--- manifest ---"; cat "$OUT" >&2

@@ -175,6 +175,7 @@ if [ -n "$RUN_MOONLIGHTING" ]; then
   nohup "$MOONLIGHTING" --conf-dir "$TARGET" --ma-client "$MA" --state-dir "$TARGET/.moonlighting" \
         --execute-agent "${agent_list[0]}" $RUN_MOONLIGHTING \
         > "$TARGET/.moonlighting/run.log" 2>&1 &
+  echo "$!" > "$TARGET/.moonlighting/moonlighting.pid"   # run-queue.sh polls this for completion
   say "moonlighting PID $! — tail $TARGET/.moonlighting/progress.log"
 else
   say "to run moonlighting on this target:"

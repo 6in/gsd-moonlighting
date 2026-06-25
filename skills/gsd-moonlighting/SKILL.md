@@ -114,11 +114,31 @@ Always `--dry-run` first to see the port plan. Tear down with
 `( cd <worktree> && launch-agents.sh down-all )` then
 `git -C <repo> worktree remove <worktree>`.
 
+### Scaling past a handful of phases — `run-queue.sh` (bounded pool)
+Launching all N worktrees at once melts the box at ~10 phases (N× ht-webif + N× driven TUI +
+N× moonlighting). `run-queue.sh` decouples the TOTAL phase count from the concurrency: it keeps
+at most **K** worktrees running, and when one finishes it tears down that slot's ht-webif (no
+process reuse) and starts the next from the queue.
+```bash
+nohup run-queue.sh --repo <repo> --phases 2,3,4,5,6,7 --max-parallel 3 > queue.out 2>&1 &
+# --dry-run first to see slot/port mapping. Size K to what the machine handles (~2-4).
+```
+A slot frees on **process exit only** — `run-queue.sh` does NOT merge. Completed worktrees
+persist (branches + dirs, zero CPU/ports) awaiting the human gate below. Completion is detected
+via each worktree's `.moonlighting/moonlighting.pid`; teardown is cwd-scoped (`launch-agents.sh
+down-all` reads that worktree's one-port `instances.conf`, so it never kills sibling slots).
+
 ### Merging the worktrees back (integration) — `merge-worktrees.sh`
 moonlighting parallelizes *phases* across worktrees; reconcile them with one command:
 ```bash
-~/.claude/skills/gsd-moonlighting/scripts/merge-worktrees.sh --repo <repo>   # --dry-run first
+merge-worktrees.sh --repo <repo>                 # --dry-run first; default merges ALL completed
+merge-worktrees.sh --repo <repo> --select p2,p4  # the HUMAN GATE: only phases that passed
+                                                 # manual verification (others stay for rework)
 ```
+**Human gate:** execute completing ≠ ready to merge — a person verifies each completed worktree
+in place (`cd <worktree> && build/test`) first. `--select` names (`agent_id`) the approved set;
+unknown names error out. Worktrees not selected are left untouched for re-run or hand-fixing.
+
 It splits the merge into the two parts that diverge differently from base:
 - **Code → GSD's validated `gsd query worktree cleanup-wave`.** Reads the per-worktree
   manifest entries (`worktree_path` / `branch` / `expected_base`) that `spawn-worktree.sh`
