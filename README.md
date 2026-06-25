@@ -37,12 +37,25 @@ git clone https://github.com/6in/claude-p.git ~/workspaces/claude-p
 cd ~/workspaces/claude-p && just install   # ht-webif + helper を ~/.local/bin、profile を ~/.config/claude-p/agents へ
 ```
 
-スキルを Claude Code に認識させる（シンボリックリンク推奨 — このリポジトリの更新が即反映される）:
+スキルを Claude Code に認識させる:
 
 ```bash
 git clone https://github.com/6in/gsd-moonlighting.git ~/workspaces/moonlighting
-ln -s ~/workspaces/moonlighting/skills/gsd-moonlighting ~/.claude/skills/gsd-moonlighting
+cd ~/workspaces/moonlighting && ./install.sh    # ~/.claude/skills/ へ symlink（このリポジトリが source of truth → git pull で即反映）
 ```
+
+`install.sh` のオプション:
+
+| オプション | 効果 |
+|-----------|------|
+| （なし） | `skills/gsd-moonlighting` を `~/.claude/skills/` に **symlink** |
+| `--copy` | symlink でなくコピー |
+| `--dest DIR` | インストール先を変更（既定 `~/.claude/skills`、`CLAUDE_SKILLS_DIR` でも指定可） |
+| `--force` | 既存の同名インストールを置換 |
+| `--uninstall` | インストール済みスキルを削除 |
+
+`install.sh` は engine 層（`ht-webif` / helper スクリプト）が PATH にあるかも確認し、無ければ
+claude-p の `just install` を促す警告を出す（インストール自体は止めない）。
 
 ## 使い方（最短）
 
