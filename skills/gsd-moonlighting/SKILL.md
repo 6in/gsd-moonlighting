@@ -50,6 +50,12 @@ For model routing, pick the agents/profiles per role (see "Model routing" below)
 `--plan-agent / --execute-agent / --verify-agent`.
 
 ## Preconditions — verify before launching
+**Quick check (especially on a new machine):** run `scripts/moonlighting-doctor.sh` from the
+target project dir — it machine-checks #1-6 below (moonlighting scripts, claude-p runtime +
+the `CLAUDE_CODE_NO_FLICKER` fix, `skipAutoPermissionPrompt`, worktree-capable gsd-core,
+gitignore) and prints "治すならここ" hints. report-only, FAIL→exit 1. (For the deeper
+*runtime*/auth/instance diagnosis, pair it with claude-p's `ma-doctor.sh`.)
+
 1. **You are in the target GSD project dir** (the repo with `.planning/ROADMAP.md` +
    `STATE.md`), and the target phases have been **discussed** (decisions captured). If not,
    stop and tell the user to `/gsd-discuss-phase` first.
