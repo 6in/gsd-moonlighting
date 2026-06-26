@@ -62,9 +62,29 @@ For model routing, pick the agents/profiles per role (see "Model routing" below)
    trust the files in this folder?" dialog and the driven claude hangs there, no-op'ing the
    turn. `skipAutoPermissionPrompt: true` suppresses it. Verify it before an unattended run;
    if missing, the first fresh-dir turn will silently stall. (See claude-p README 前提依存.)
-4. **Confirm scope with the user:** which phases, which agent per role (model routing), and
-   that an unattended run is wanted. Note that setup writes `instances.conf`, `turns-<port>/`,
-   `.moonlighting/` (and `.codex-home` if codex) into the dir — gitignore them.
+4. **No blocking first-run dialog for the driven claude (beyond trust).** Newer Claude Code
+   versions add one-time onboarding prompts — e.g. v2.1.193's *"Try the new fullscreen
+   renderer?"* — that leave the driven TUI stuck before its ready prompt, so ht-webif's
+   readiness poll times out (~30-60s) and the launch dies (`プロセスが終了しました`; the
+   ht-webif log is full of the dialog screen). This is suppressed in `launch-agents.sh`, which
+   re-injects `CLAUDE_CODE_NO_FLICKER=1` **after** its `CLAUDE_CODE_*` env scrub (a parent-export
+   would be eaten by that scrub). Make sure your claude-p carries that fix. **General rule:** any
+   new first-run dialog is a launch footgun — if launch fails at readiness and the log shows a
+   dialog, suppress it the same way (env/settings) inside `launch-agents.sh`.
+5. **gsd-core present in the target repo** — `.planning/` + `gsd-core/bin/gsd-tools.cjs` (or run
+   `npx -y @opengsd/gsd-core@latest --claude --local`). `merge-worktrees.sh` needs it for
+   `worktree cleanup-wave` + `state sync`; the global-npm PATH `gsd-tools` **lacks the `worktree`
+   command** (and miscomputes progress), so the script auto-selects the gsd-core install — but it
+   must exist.
+6. **Confirm scope with the user:** which phases, which agent per role (model routing), and that
+   an unattended run is wanted. Setup writes runtime scratch into the dir — **gitignore it**, or
+   cleanup-wave's clean-tree check later trips on the untracked files and blocks the merge:
+   ```
+   instances.conf
+   turns-*/
+   .moonlighting/
+   .codex-home/
+   ```
 
 ## How to launch (in place, detached)
 From the **target project dir** (your cwd). Dry-run first to see the port plan + conf:
@@ -158,6 +178,44 @@ It splits the merge into the two parts that diverge differently from base:
 **deletes/renames** a file vs its base is **blocked** (`branch_contains_deletions`) — additive
 phases only, resolve renames by hand; the worktree must be clean (all work committed; gitignored
 runtime artifacts are fine).
+
+**When cleanup-wave BLOCKS mid-wave on a real code conflict** (e.g. two phases both
+`root.AddCommand(...)` at the same spot), it is fail-loud and does NOT auto-resolve: it leaves
+that branch's `git merge` **in progress** (`.git/MERGE_HEAD` set, conflict markers in the tree)
+and stops — having already merged the earlier branches. `merge-worktrees.sh` returns rc=1. Finish
+that one entry by hand, then continue what the script skipped:
+```bash
+# 1. resolve the conflicted file(s) — keep BOTH additions, then:
+git -C <repo> add <file> && git -C <repo> commit --no-edit   # completes the in-progress merge
+# 2. do what cleanup-wave would have done for this entry:
+git -C <repo> worktree remove --force <wt> && git -C <repo> branch -D <branch>
+# 3. finish the meta reconcile the script didn't reach:
+gsd query state sync && gsd query validate consistency       # then commit STATE/ROADMAP
+rm -rf <repo>/.moonlighting/manifest.d <repo>/.moonlighting/cleanup-manifest.json
+```
+(merge=ours keeps STATE.md out of the conflict; only genuine code overlaps block. Do NOT just
+re-run `merge-worktrees.sh` — already-merged entries' worktrees are gone, so a re-run fails on them.)
+
+**Caveat — `state sync` updates only the frontmatter `percent`, NOT the body `Progress: [bar] N%`
+line.** After a wave the body bar can read stale (frontmatter 75% while the body still shows 100%);
+`validate consistency` does not catch it (it checks frontmatter-vs-disk only). Hand-fix the body bar.
+
+## Morning review — resolving a halted phase
+The loop halts on any grey-area / verify gap / blocker / timeout and writes the phase + reason to
+`<state-dir>/morning-queue.md` (it does NOT guess). To clear a halt:
+1. **Read the blocker:** `cat <wt>/.moonlighting/morning-queue.md`, plus the relevant artifact it
+   names (e.g. `<wt>/.planning/phases/<NN>/<NN>-VERIFICATION.md` for a `gaps_found` verify halt).
+2. **Fix it directly from this (parent) session.** A worktree shares the filesystem, so you can
+   edit + commit the worktree's code in place — no need to drive the fix through the harness. (A
+   verify gap is naturally a RED→GREEN commit in the worktree.) Genuine developer grey-area calls
+   are the human's to make; surface the options, don't guess.
+3. **Resume only the step that halted**, on the SAME worktree (which now holds your fix):
+   ```bash
+   spawn-worktree.sh --here --dir <wt> --launch --run-moonlighting "--only <N> --steps verify"
+   ```
+   Use `--here --dir <wt>` to reuse the existing worktree — do NOT spawn a fresh one (it would
+   branch from base, WITHOUT your fix). `--here` does not emit a new manifest entry; the original
+   one still points at the same branch, so the later merge is unaffected. Once it passes, merge.
 
 ## Model routing (optional, the multi-agent edge)
 `--plan-agent` / `--execute-agent` / `--verify-agent` take `instances.conf` agent names
