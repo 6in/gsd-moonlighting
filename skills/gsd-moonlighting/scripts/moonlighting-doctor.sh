@@ -172,6 +172,14 @@ fi
 creds="${HOME}/.claude/.credentials.json"
 if [[ -f "$creds" ]]; then
     ok "claude 認証ファイルあり: ${creds}"
+elif [[ "$(uname -s)" == "Darwin" ]]; then
+    # macOS は OAuth 認証情報を Keychain に保存し、.credentials.json は作られない。
+    # 存在確認のみ（-g/-w を付けない限り Keychain ロック解除プロンプトは出ない）。
+    if security find-generic-password -s "Claude Code-credentials" >/dev/null 2>&1; then
+        ok "claude 認証: macOS Keychain に 'Claude Code-credentials' あり（macOS は .credentials.json を使わない）"
+    else
+        warn "claude 認証を確認できません（macOS Keychain に 'Claude Code-credentials' 未検出）" "claude にログイン済みか確認してください。macOS はファイルではなく Keychain に保存します（claude でログイン）"
+    fi
 else
     fail "claude 認証ファイルが見つかりません: ${creds}" "Max サブスクリプションでログインしてください（claude にログイン）"
 fi
