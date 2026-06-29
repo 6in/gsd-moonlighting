@@ -116,7 +116,7 @@ in parallel, give each its own **git worktree + port-shifted instances.conf**, g
 the spot. `scripts/spawn-worktree.sh` does this (claude-p itself is never modified):
 
 ```bash
-# one isolated worktree (index -> port block: 0=8080.., 1=8090.., 2=8100..):
+# one isolated worktree (index -> port block: 0=5080.., 1=5090.., 2=5100..):
 ~/.claude/skills/gsd-moonlighting/scripts/spawn-worktree.sh \
   --repo <source-repo> --name feat-a --index 0 --agents claude \
   --launch --run-moonlighting "--from 2"

@@ -260,7 +260,7 @@ if git -C "$REPO" rev-parse --git-dir >/dev/null 2>&1; then
     # ディレクトリ専用パターン（X/）は、問い合わせパスに末尾スラッシュを付けないと
     # 実在しない dir にマッチしない（check-ignore は filesystem を stat しない）。
     # instances.conf はファイルなのでスラッシュ無し、残り 3 つは dir なので末尾 / 付き。
-    for entry in instances.conf turns-8080/ .moonlighting/ .codex-home/; do
+    for entry in instances.conf turns-5080/ .moonlighting/ .codex-home/; do
         if git -C "$REPO" check-ignore -q "$entry" 2>/dev/null; then
             ok "gitignore 済み: ${entry}"
         else

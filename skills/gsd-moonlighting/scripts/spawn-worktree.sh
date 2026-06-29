@@ -23,7 +23,7 @@ WEBIF_DIR="${WEBIF_DIR:-/home/parallels/workspaces/claude-p}"  # fallback for he
 HERE=false; DIR=""
 REPO=""; NAME=""; INDEX=""; BRANCH=""
 AGENTS="claude"                 # comma list; matches agents/<name>.toml profiles
-BASE_PORT=8080; STRIDE=10
+BASE_PORT=5080; STRIDE=10
 WORKTREES_ROOT=""               # default: <repo>/../<repo-name>-wt
 LAUNCH=false
 RUN_MOONLIGHTING=""                # phase spec for moonlighting (e.g. "--from 2"); empty = don't
@@ -42,7 +42,7 @@ spawn-worktree.sh — generate instances.conf in a target dir and launch ht-webi
   common:
     --agents a,b           agents in port order (default: claude)
     --index I              port offset index (worktree: required; --here: default 0)
-    --base-port N          first port (default: 8080)
+    --base-port N          first port (default: 5080)
     --stride N             ports per target (default: 10; must exceed agent count)
     --branch NAME          worktree branch (default: moonlighting/<name>)
     --worktrees-root D     worktree parent (default: <repo>/../<repo>-wt)

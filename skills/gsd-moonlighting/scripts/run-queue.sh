@@ -17,7 +17,7 @@
 #   nohup run-queue.sh --repo R --phases 2,3,4,5 --max-parallel 3 > queue.out 2>&1 &
 set -uo pipefail
 
-REPO=""; PHASES=""; K=2; BASE_PORT=8080; STRIDE=10; AGENTS="claude"; POLL=30; DRY_RUN=false
+REPO=""; PHASES=""; K=2; BASE_PORT=5080; STRIDE=10; AGENTS="claude"; POLL=30; DRY_RUN=false
 # Optional moonlighting passthrough (empty = moonlighting's own defaults: STEPS=plan,execute).
 # Without these, queue mode could only ever run plan,execute — no way to gate phases with verify.
 STEPS=""; VERIFY_AGENT=""; FIX_RETRIES=""
@@ -31,7 +31,7 @@ run-queue.sh — run a queue of phases through a bounded pool of moonlighting wo
   --repo DIR            git repo / integration root (required)
   --phases LIST         comma-list of phase numbers to run, in order (e.g. 2,3,4,5)
   --max-parallel K      concurrent worktrees (default: 2; size to what the box handles)
-  --base-port N         first port (default: 8080)
+  --base-port N         first port (default: 5080)
   --stride N            ports per slot (default: 10; must exceed agent count)
   --agents a,b          agents per slot in port order (default: claude)
   --steps a,b           moonlighting step sequence per phase (default: plan,execute; add verify to gate)
