@@ -80,7 +80,7 @@ ML_EXTRA="${STEPS:+ --steps $STEPS}${VERIFY_AGENT:+ --verify-agent $VERIFY_AGENT
 say "=== run-queue: ${#QUEUE[@]} phases [${PHASES}], K=$K, ports ${BASE_PORT}+slot*${STRIDE} ==="
 if $DRY_RUN; then
   say "--- DRY-RUN plan ---"
-  i=0; for ph in "${QUEUE[@]}"; do slot=$((i % K)); say "  phase $ph -> slot $slot -> port $((BASE_PORT + slot*STRIDE)) -> worktree $WTROOT/p$ph (branch worktree-agent-p$ph)"; i=$((i+1)); done
+  i=0; for ph in "${QUEUE[@]}"; do slot=$((i % K)); say "  phase $ph -> slot $slot -> port $((BASE_PORT + slot*STRIDE)) -> worktree $WTROOT/p$ph (branch moonlight/p$ph -> worktree-agent-p$ph at merge)"; i=$((i+1)); done
   say "  steps per phase: ${STEPS:-plan,execute (moonlighting default)}${VERIFY_AGENT:+ ; verify-agent=$VERIFY_AGENT}${FIX_RETRIES:+ ; fix-retries=$FIX_RETRIES}"
   say "  (only K=$K run at once; teardown on completion frees the slot; NO auto-merge)"
   exit 0
