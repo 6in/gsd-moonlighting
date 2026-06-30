@@ -97,6 +97,7 @@ say "--- manifest ---"; cat "$OUT" >&2
 
 if $DRY_RUN; then
   say "--- DRY-RUN: would set merge.ours.driver, write .gitattributes, run:"
+  say "      (rename each worktree branch moonlight/<name> -> worktree-agent-<name>)"
   say "      gsd query worktree cleanup-wave --manifest $OUT"
   say "      gsd query state sync && gsd query validate consistency"
   exit 0
@@ -113,6 +114,31 @@ if ! git -C "$REPO" diff --quiet -- .gitattributes 2>/dev/null || \
   git -C "$REPO" add .gitattributes
   $NO_COMMIT || git -C "$REPO" commit -q -m 'chore: STATE.md merge=ours for worktree reconcile' || true
 fi
+
+# 1b. Rename each worktree branch into the worktree-agent-* namespace cleanup-wave requires.
+#     spawn-worktree.sh creates them as moonlight/<name> so GSD execute-phase's #48 cwd-drift
+#     guard lets the orchestrator run; cleanup-wave (next) hard-requires ^worktree-agent-*.
+#     Renames the worktree's CURRENT HEAD branch (robust to drift), rewrites $OUT to match,
+#     and is idempotent (a branch already in the namespace is left untouched — safe to re-run).
+say "--- rename worktree branches to worktree-agent-* (for cleanup-wave) ---"
+node -e '
+  const fs=require("fs"), cp=require("child_process");
+  const out=process.argv[1];
+  const m=JSON.parse(fs.readFileSync(out,"utf8"));
+  for (const w of (m.worktrees||[])) {
+    const id=(w.agent_id||"").trim();
+    if (!id) { process.stderr.write(`rename: manifest entry missing agent_id (branch ${w.branch}); cannot derive target\n`); process.exit(5); }
+    const target="worktree-agent-"+id;
+    const cur=cp.spawnSync("git",["-C",w.worktree_path,"rev-parse","--abbrev-ref","HEAD"],{encoding:"utf8"});
+    const curBranch=cur.status===0 ? cur.stdout.trim() : "";
+    if (curBranch===target) { process.stderr.write(`keep ${target} (already in namespace)\n`); w.branch=target; continue; }
+    const r=cp.spawnSync("git",["-C",w.worktree_path,"branch","-m",target],{encoding:"utf8"});
+    if (r.status!==0) { process.stderr.write(`rename FAILED ${curBranch||"<detached?>"} -> ${target} in ${w.worktree_path}\n${r.stderr||r.stdout||""}\n`); process.exit(6); }
+    process.stderr.write(`renamed ${curBranch||"?"} -> ${target} (${w.worktree_path})\n`);
+    w.branch=target;
+  }
+  fs.writeFileSync(out, JSON.stringify(m,null,2));
+' "$OUT" || { say "merge-worktrees: branch rename to worktree-agent-* failed — resolve and re-run"; exit 1; }
 
 # 2. CODE merge via GSD's validated cleanup-wave (also removes the worktrees on success)
 say "--- cleanup-wave ---"
