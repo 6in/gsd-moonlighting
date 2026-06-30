@@ -44,7 +44,7 @@ spawn-worktree.sh — generate instances.conf in a target dir and launch ht-webi
     --index I              port offset index (worktree: required; --here: default 0)
     --base-port N          first port (default: 5080)
     --stride N             ports per target (default: 10; must exceed agent count)
-    --branch NAME          worktree branch (default: moonlighting/<name>)
+    --branch NAME          worktree branch (default: moonlight/<name>; renamed to worktree-agent-<name> at merge)
     --worktrees-root D     worktree parent (default: <repo>/../<repo>-wt)
     --webif-dir DIR        fallback dir for ma-client.sh/launch-agents.sh if not on PATH (default: claude-p)
     --launch               actually launch ht-webif (needs ht-webif on PATH)
@@ -93,12 +93,15 @@ else
   [ -n "$REPO" ] && [ -n "$NAME" ] && [ -n "$INDEX" ] || {
     echo "spawn-worktree: worktree mode needs --repo, --name, --index (or use --here)" >&2; usage; }
   git -C "$REPO" rev-parse --git-dir >/dev/null 2>&1 || { echo "spawn-worktree: $REPO is not a git repo" >&2; exit 1; }
-  # Default branch matches cleanup-wave's required pattern ^worktree-agent-[A-Za-z0-9._/-]+$
-  # so merge-worktrees.sh can reconcile it via `gsd query worktree cleanup-wave`.
-  BRANCH="${BRANCH:-worktree-agent-$NAME}"
+  # Use a NON-reserved branch prefix. GSD's execute-phase #48 cwd-drift guard hard-refuses to
+  # run (exit 1) when the orchestrator HEAD matches ^worktree-agent-* — that namespace is
+  # reserved for GSD's OWN intra-phase executor worktrees. moonlighting runs the WHOLE
+  # execute-phase orchestrator from inside this worktree, so a worktree-agent-* branch trips
+  # #48 and blocks execute. cleanup-wave (the merge side) still REQUIRES ^worktree-agent-*, so
+  # merge-worktrees.sh renames moonlight/<name> -> worktree-agent-<name> just before the merge.
+  BRANCH="${BRANCH:-moonlight/$NAME}"
   case "$BRANCH" in
-    worktree-agent-*) :;;
-    *) echo "spawn-worktree: WARNING — branch '$BRANCH' does not match worktree-agent-* ; cleanup-wave will reject it (merge back manually)." >&2;;
+    worktree-agent-*) echo "spawn-worktree: WARNING — branch '$BRANCH' is in GSD's reserved worktree-agent-* namespace; execute-phase's #48 guard will refuse to run from it. Use a non-reserved name (default: moonlight/<name>)." >&2;;
   esac
   repo_name="$(basename "$REPO")"
   WORKTREES_ROOT="${WORKTREES_ROOT:-$(dirname "$REPO")/${repo_name}-wt}"
